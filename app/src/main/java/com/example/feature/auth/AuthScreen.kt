@@ -1,5 +1,8 @@
 package com.example.feature.auth
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,15 +34,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.core.designsystem.NestButton
 import com.example.core.designsystem.NestButtonVariant
@@ -50,8 +56,18 @@ import com.example.core.designsystem.NestTable
 import com.example.core.designsystem.NestTextField
 import com.example.core.designsystem.NestTopBar
 import com.example.core.security.AuthMode
+import com.example.core.security.NestBiometricLockManager
 import com.example.core.security.TrustedDevice
 import com.example.ui.theme.LocalNestColors
+
+private fun Context.findFragmentActivity(): FragmentActivity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is FragmentActivity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 
 @Composable
 fun AuthScreen(
@@ -61,6 +77,29 @@ fun AuthScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val colors = LocalNestColors.current
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+    val biometricLockManager = remember { NestBiometricLockManager() }
+
+    val triggerBiometricAuth = {
+        if (activity != null) {
+            biometricLockManager.authenticateBiometric(
+                activity = activity,
+                title = "Unlock Nest Vault",
+                subtitle = "Scan fingerprint or facial recognition to unlock",
+                description = "Hardware-backed zero-knowledge biometric verification.",
+                negativeButtonText = "Use Master Password",
+                onSuccess = {
+                    viewModel.loginWithBiometrics(onAuthSuccess)
+                },
+                onError = { err ->
+                    Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                }
+            )
+        } else {
+            viewModel.loginWithBiometrics(onAuthSuccess)
+        }
+    }
 
     // Modal Dialog showing generated Recovery Key after Registration
     if (uiState.showRecoveryKeyDialog && uiState.generatedRecoveryKey != null) {
@@ -155,7 +194,7 @@ fun AuthScreen(
                         onEmailChange = { viewModel.updateEmail(it) },
                         onPasswordChange = { viewModel.updatePassword(it) },
                         onSubmit = { viewModel.login(onAuthSuccess) },
-                        onBiometricsClick = { viewModel.loginWithBiometrics(onAuthSuccess) }
+                        onBiometricsClick = { triggerBiometricAuth() }
                     )
                 }
                 AuthMode.REGISTER -> {

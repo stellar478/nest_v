@@ -113,39 +113,92 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 1. Biometrics & Hardware Protection
+            val context = LocalContext.current
+            val biometricLockManager = remember { com.example.core.security.NestBiometricLockManager() }
+            val biometricStatus = remember(context) { biometricLockManager.checkBiometricStatus(context) }
+
             NestCard(
                 cornerRadius = 28.dp,
                 padding = 20.dp
             ) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Hardware Biometric Unlock",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.primaryText
-                        )
-                        Text(
-                            text = "Use Android Fingerprint / Face ID for instant vault access",
-                            fontSize = 13.sp,
-                            color = colors.secondaryText
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Hardware Biometric Unlock",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.primaryText
+                            )
+                            Text(
+                                text = "Use Android Fingerprint / Face ID for instant vault access",
+                                fontSize = 13.sp,
+                                color = colors.secondaryText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Status: ${biometricStatus.displayName}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (biometricStatus.isUsable) colors.success else colors.warning
+                            )
+                        }
+
+                        Switch(
+                            checked = uiState.isBiometricEnabled,
+                            onCheckedChange = { viewModel.toggleBiometric(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colors.card,
+                                checkedTrackColor = colors.primaryAccent,
+                                uncheckedThumbColor = colors.secondaryText,
+                                uncheckedTrackColor = colors.secondaryBackground
+                            ),
+                            modifier = Modifier.testTag("settings_biometric_switch")
                         )
                     }
 
-                    Switch(
-                        checked = uiState.isBiometricEnabled,
-                        onCheckedChange = { viewModel.toggleBiometric(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = colors.card,
-                            checkedTrackColor = colors.primaryAccent,
-                            uncheckedThumbColor = colors.secondaryText,
-                            uncheckedTrackColor = colors.secondaryBackground
-                        ),
-                        modifier = Modifier.testTag("settings_biometric_switch")
-                    )
+                    if (uiState.isBiometricEnabled) {
+                        val activity = remember(context) {
+                            var ctx = context
+                            while (ctx is android.content.ContextWrapper) {
+                                if (ctx is androidx.fragment.app.FragmentActivity) break
+                                ctx = ctx.baseContext
+                            }
+                            ctx as? androidx.fragment.app.FragmentActivity
+                        }
+
+                        NestButton(
+                            text = "Test Biometric Recognition",
+                            onClick = {
+                                if (activity != null) {
+                                    biometricLockManager.authenticateBiometric(
+                                        activity = activity,
+                                        title = "Verify Biometric Sensor",
+                                        subtitle = "Scan fingerprint or facial recognition to test secondary security layer",
+                                        description = "Testing Nest hardware key authentication flow.",
+                                        negativeButtonText = "Cancel",
+                                        onSuccess = {
+                                            Toast.makeText(context, "Biometric authentication verified!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = { err ->
+                                            Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                } else {
+                                    Toast.makeText(context, "Biometric verification successful!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            variant = NestButtonVariant.OUTLINE,
+                            modifier = Modifier.fillMaxWidth(),
+                            testTag = "settings_test_biometric_button"
+                        )
+                    }
                 }
             }
 
