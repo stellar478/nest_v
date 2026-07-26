@@ -1,0 +1,6 @@
+{
+  "name": "Nest",
+  "description": "Nest is a premium encrypted personal digital vault for Android and Windows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
